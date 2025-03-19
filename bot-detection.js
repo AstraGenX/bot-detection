@@ -3,10 +3,12 @@
     let lastMouseMoveTime = Date.now();
     let lastMousePosition = { x: null, y: null };
     let lastScrollTime = Date.now();
+    let lastClickTime = Date.now();
+    let lastKeyPressTime = Date.now();
     let clickCount = 0;
     let keypressCount = 0;
     let mouseMovements = [];
-    const MAX_MOUSE_TRACK = 50;
+    const MAX_MOUSE_TRACK = 100;
     let botDetected = false;
 
     function showBotPopup() {
@@ -19,7 +21,7 @@
             popup.innerHTML = `
                 <div id="bot-popup-content">
                     <h2>⚠️ Bot Detected!</h2>
-                    <p>Your behavior indicates automated activity.</p>
+                    <p>Your behavior suggests automated activity.</p>
                     <button onclick="document.getElementById('bot-popup').remove()">OK</button>
                 </div>
             `;
@@ -58,29 +60,45 @@
     }
 
     function detectBot() {
-        if (botScore > 15) {
+        if (botScore >= 20) {
             showBotPopup();
         }
     }
 
-    // Detect linear mouse movements
-    function checkLinearMouseMovement() {
-        if (mouseMovements.length < 5) return;
+    // Detect linear and robotic mouse movements
+    function checkMousePatterns() {
+        if (mouseMovements.length < 10) return;
+
         let totalDeviation = 0;
         let first = mouseMovements[0];
         let last = mouseMovements[mouseMovements.length - 1];
 
         let slope = (last.y - first.y) / (last.x - first.x);
-        mouseMovements.forEach(point => {
+        let speedSum = 0;
+        let suddenJumps = 0;
+
+        mouseMovements.forEach((point, index) => {
+            if (index > 0) {
+                let dx = Math.abs(point.x - mouseMovements[index - 1].x);
+                let dy = Math.abs(point.y - mouseMovements[index - 1].y);
+                let speed = Math.sqrt(dx * dx + dy * dy);
+                speedSum += speed;
+
+                if (speed > 50) suddenJumps++; // Unusual jump detection
+            }
+
             let expectedY = first.y + slope * (point.x - first.x);
             totalDeviation += Math.abs(expectedY - point.y);
         });
 
         let avgDeviation = totalDeviation / mouseMovements.length;
-        if (avgDeviation < 2) {
-            botScore += 7; // Almost straight-line movement is suspicious
-            showBotPopup();
+        let avgSpeed = speedSum / mouseMovements.length;
+
+        if (avgDeviation < 1.5 && avgSpeed > 10 && suddenJumps < 2) {
+            botScore += 8; // Linear robotic movement
         }
+
+        mouseMovements = [];
     }
 
     // Mouse move detection
@@ -88,46 +106,67 @@
         let now = Date.now();
         let timeDiff = now - lastMouseMoveTime;
 
-        if (timeDiff < 10) botScore += 2; // Extremely fast movement
+        if (timeDiff < 10) botScore += 1; // Very fast reaction time
 
-        // Track mouse positions
         if (lastMousePosition.x !== null) {
-            mouseMovements.push({ x: event.clientX, y: event.clientY });
-            if (mouseMovements.length > MAX_MOUSE_TRACK) mouseMovements.shift();
+            let dx = Math.abs(event.clientX - lastMousePosition.x);
+            let dy = Math.abs(event.clientY - lastMousePosition.y);
+            let distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 100) botScore += 3; // Sudden large movement
+            if (dx < 2 && dy < 2) botScore += 2; // Very tiny movements
         }
+
+        mouseMovements.push({ x: event.clientX, y: event.clientY });
+        if (mouseMovements.length > MAX_MOUSE_TRACK) mouseMovements.shift();
 
         lastMousePosition = { x: event.clientX, y: event.clientY };
         lastMouseMoveTime = now;
 
-        checkLinearMouseMovement();
+        checkMousePatterns();
         detectBot();
     });
 
     // Detect rapid scrolling
     document.addEventListener("scroll", () => {
         let now = Date.now();
-        if (now - lastScrollTime < 50) botScore += 3; // Too fast scrolling
+        let timeDiff = now - lastScrollTime;
+
+        if (timeDiff < 100) botScore += 4; // Very rapid scrolling
         lastScrollTime = now;
         detectBot();
     });
 
-    // Detect excessive clicks
+    // Detect excessive clicking
     document.addEventListener("click", () => {
+        let now = Date.now();
+        let timeDiff = now - lastClickTime;
         clickCount++;
-        if (clickCount > 10) botScore += 5; // Too many clicks in short time
+
+        if (timeDiff < 200) botScore += 3; // Clicking too fast
+        if (clickCount > 15) botScore += 5; // Too many clicks
+
+        lastClickTime = now;
         detectBot();
     });
 
-    // Detect automated key presses
+    // Detect excessive key presses
     document.addEventListener("keydown", () => {
+        let now = Date.now();
+        let timeDiff = now - lastKeyPressTime;
         keypressCount++;
-        if (keypressCount > 15) botScore += 4; // Excessive keypresses
+
+        if (timeDiff < 100) botScore += 2; // Fast keypresses
+        if (keypressCount > 20) botScore += 4; // Excessive keypresses
+
+        lastKeyPressTime = now;
         detectBot();
     });
 
-    // Periodic bot score decay
+    // Adaptive bot score decay
     setInterval(() => {
-        botScore = Math.max(0, botScore - 1); // Decrease score over time
-    }, 1000);
+        if (botScore > 10) botScore -= 2;
+        else botScore = Math.max(0, botScore - 1);
+    }, 1500);
 
 })();
