@@ -7,11 +7,59 @@
     let keypressCount = 0;
     let mouseMovements = [];
     const MAX_MOUSE_TRACK = 50;
+    let botDetected = false;
+
+    function showBotPopup() {
+        if (!botDetected) {
+            botDetected = true;
+            
+            // Create popup div
+            let popup = document.createElement("div");
+            popup.id = "bot-popup";
+            popup.innerHTML = `
+                <div id="bot-popup-content">
+                    <h2>⚠️ Bot Detected!</h2>
+                    <p>Your behavior indicates automated activity.</p>
+                    <button onclick="document.getElementById('bot-popup').remove()">OK</button>
+                </div>
+            `;
+
+            // Add styles
+            let styles = document.createElement("style");
+            styles.innerHTML = `
+                #bot-popup {
+                    position: fixed;
+                    top: 0; left: 0; width: 100%; height: 100%;
+                    background: rgba(0, 0, 0, 0.7);
+                    display: flex; align-items: center; justify-content: center;
+                    z-index: 10000;
+                }
+                #bot-popup-content {
+                    background: white;
+                    padding: 20px;
+                    text-align: center;
+                    border-radius: 10px;
+                    box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+                }
+                #bot-popup button {
+                    padding: 10px 20px;
+                    background: red;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    margin-top: 10px;
+                }
+            `;
+
+            document.head.appendChild(styles);
+            document.body.appendChild(popup);
+        }
+    }
 
     function detectBot() {
         if (botScore > 15) {
-            console.warn("🚨 Bot detected! Taking action...");
-            document.body.setAttribute("data-bot-detected", "true");
+            showBotPopup();
         }
     }
 
@@ -31,7 +79,7 @@
         let avgDeviation = totalDeviation / mouseMovements.length;
         if (avgDeviation < 2) {
             botScore += 7; // Almost straight-line movement is suspicious
-            console.warn("⚠️ Linear mouse movement detected (Potential bot)");
+            showBotPopup();
         }
     }
 
